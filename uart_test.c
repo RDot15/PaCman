@@ -30,8 +30,9 @@ DMA_HandleTypeDef hdma_usart2_tx;
 uint8_t btn_before = 0;
 uint8_t btn_now = 0;
 uint8_t rx_buff[1];
-char tx_buff[] = "Hello, my name is Dima. Number 1 - true, another - false\r\r";
-char data_receive[]= "Data received\r\r";
+char tx_buff[] = "Hello, my name is Dima. Number 1 - hello, 0 - goodby\r\r";
+char data_receive[]= "Data received, hello\r\r";
+char data_receive_by[] = "Data received, goodby\r\r";
 uint8_t count_blink_led = 3;
 uint8_t flag = 0;
 
@@ -73,20 +74,20 @@ int main(void)
   while (1)
   {
 	
-			btn_now = HAL_GPIO_ReadPin(GPIOC, BTN_PC13_Pin);
-			HAL_Delay(50);
-		
-			if ((btn_before == 0) && (btn_now != 0))
-			{
-				HAL_UART_Transmit_DMA(&huart2, (uint8_t *)tx_buff, sizeof(tx_buff));
-			}
-			btn_before = btn_now;
+	btn_now = HAL_GPIO_ReadPin(GPIOC, BTN_PC13_Pin);
+	HAL_Delay(50);
+	
+	  if ((btn_before == 0) && (btn_now != 0))
+	{
+		HAL_UART_Transmit_DMA(&huart2, (uint8_t *)tx_buff, sizeof(tx_buff));
+	}
+		btn_before = btn_now;
 			
-		if (flag)
-    {
-        flag_led(); // Вызов функции для мигания светодиода
-        flag = 0; 
-    }
+	if (flag)
+   	{
+        	flag_led(); // Вызов функции для мигания светодиода
+       		 flag = 0; 
+    	}
   
   }
  
@@ -215,9 +216,8 @@ void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
 {
   if (huart == &huart2)  
 						flag = 1;
-
-    
 }
+
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 {
     if (huart == &huart2)
@@ -227,6 +227,13 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
             flag = 1;
             HAL_UART_Transmit_DMA(&huart2, (uint8_t*)data_receive, sizeof(data_receive));
         }
+	if (rx_buff[0] == '0')
+        {
+            flag = 1;
+            HAL_UART_Transmit_DMA(&huart2, (uint8_t*)data_receive_by, sizeof(data_receive_by));
+        }
+				
+				
         HAL_UART_Receive_DMA(&huart2, rx_buff, sizeof(rx_buff)); 
     }
 }
