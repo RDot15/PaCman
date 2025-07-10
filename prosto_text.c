@@ -1,6 +1,6 @@
 // https://naviawireless.ru/wp-content/uploads/pn6280_hardware-design_v1.0.pdf?ysclid=ma6sja3ogx383492268
 // https://www.euromobile.ru/upload/iblock/2d0/pn6280_at_command_user_guide_v1.0.pdf?ysclid=ma6ttj1x3m803827390
-
+// https://novosibirsk.hh.ru/vacancy/120448708?from=applicant_recommended&hhtmFrom=main интересная вакансия
 
 MAIN 
 
