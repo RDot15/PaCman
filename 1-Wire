@@ -1,0 +1,459 @@
+#include "main.h"
+#include <stdio.h>
+#include <string.h>
+
+/* Private variables ---------------------------------------------------------*/
+TIM_HandleTypeDef htim4;
+UART_HandleTypeDef huart2;
+
+/* USER CODE BEGIN PV */
+uint8_t str[50];
+float temp = 0.0;
+/* USER CODE END PV */
+
+/* Private function prototypes -----------------------------------------------*/
+void SystemClock_Config(void);
+static void MX_GPIO_Init(void);
+static void MX_USART2_UART_Init(void);
+static void MX_TIM4_Init(void);
+/* USER CODE BEGIN PFP */
+
+void Set_Pin_Input(GPIO_TypeDef *GPIOx, uint8_t GPIO_Pin);
+void Set_Pin_Output(GPIO_TypeDef *GPIOx, uint8_t GPIO_Pin);
+void delay_us(uint16_t us);
+void delay_ms(uint16_t ms);
+
+uint8_t DS18B20_Start(void);
+void DS18B20_WriteBit(uint8_t bit);
+uint8_t DS18B20_ReadBit(void);
+void DS18B20_WriteByte(uint8_t data);
+uint8_t DS18B20_ReadByte(void);
+void DS18B20_StartConversion(void);
+float DS18B20_ReadTemperature(void);
+
+void Error_Handler_Custom(void);
+void Send_Temperature_UART(float temperature);
+
+/* USER CODE END PFP */
+
+int main(void)
+{
+  /* MCU Configuration--------------------------------------------------------*/
+  HAL_Init();
+  SystemClock_Config();
+  MX_GPIO_Init();
+  MX_USART2_UART_Init();
+  MX_TIM4_Init();
+  
+  /* USER CODE BEGIN 2 */
+  HAL_TIM_Base_Start(&htim4);
+  
+	/*******************************ТЕСТЫ********************************************************/
+	
+	
+  char init_msg[] = "\r\n=== DS18B20 Hardware Test ===\r\n";
+  HAL_UART_Transmit(&huart2, (uint8_t*)init_msg, strlen(init_msg), 100);
+    
+   
+  char debug_msg[100];
+  Set_Pin_Input(GPIOA, GPIO_PIN_0);
+  GPIO_PinState state = HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_0);
+    
+  snprintf(debug_msg, sizeof(debug_msg), "1.resistor test: %s\r\n", 
+             (state == 1) ? "OK " : "FAIL ");
+  HAL_UART_Transmit(&huart2, (uint8_t*)debug_msg, strlen(debug_msg), 100);
+    
+  Set_Pin_Output(GPIOA, GPIO_PIN_0);
+  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_0, GPIO_PIN_RESET);
+  HAL_Delay(10);
+    
+  Set_Pin_Input(GPIOA, GPIO_PIN_0);
+  state = HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_0);
+  snprintf(debug_msg, sizeof(debug_msg), "2. Line drive test: %s\r\n", 
+             (state == 0) ? "OK " : "FAIL ");
+  HAL_UART_Transmit(&huart2, (uint8_t*)debug_msg, strlen(debug_msg), 100);
+    
+ 
+  Set_Pin_Output(GPIOA, GPIO_PIN_0);
+  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_0, GPIO_PIN_SET);
+  
+    
+  snprintf(debug_msg, sizeof(debug_msg), "3. DS18B20 test:\r\n");
+  HAL_UART_Transmit(&huart2, (uint8_t*)debug_msg, strlen(debug_msg), 100);
+    
+  uint8_t result = DS18B20_Start();
+    
+  if (result == 0) {
+      char success_msg[] = "SUCCESS: DS18B20 is connected!\r\n";
+      HAL_UART_Transmit(&huart2, (uint8_t*)success_msg, strlen(success_msg), 100);
+  } else {
+      char error_msg[] = "ERROR: DS18B20 not detected!\r\n";
+      HAL_UART_Transmit(&huart2, (uint8_t*)error_msg, strlen(error_msg), 100);
+  }
+    
+  while (1) {
+     Error_Handler_Custom();
+  }
+}
+/**
+  * @brief System Clock Configuration
+  * @retval None
+  */
+void SystemClock_Config(void)
+{
+  RCC_OscInitTypeDef RCC_OscInitStruct = {0};
+  RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
+
+  /** Initializes the RCC Oscillators according to the specified parameters
+  * in the RCC_OscInitTypeDef structure.
+  */
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI;
+  RCC_OscInitStruct.HSIState = RCC_HSI_ON;
+  RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
+  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_NONE;
+  if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /** Initializes the CPU, AHB and APB buses clocks
+  */
+  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
+                              |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
+  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_HSI;
+  RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
+  RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
+  RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
+
+  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_0) != HAL_OK)
+  {
+    Error_Handler();
+  }
+}
+
+/**
+  * @brief TIM4 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM4_Init(void)
+{
+
+  /* USER CODE BEGIN TIM4_Init 0 */
+
+  /* USER CODE END TIM4_Init 0 */
+
+  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+
+  /* USER CODE BEGIN TIM4_Init 1 */
+
+  /* USER CODE END TIM4_Init 1 */
+  htim4.Instance = TIM4;
+  htim4.Init.Prescaler = 8-1;  											 // ЕСТЬ ВОПРОСЫ!
+  htim4.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim4.Init.Period = 65535- 1;
+  htim4.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim4.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim4) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  if (HAL_TIM_ConfigClockSource(&htim4, &sClockSourceConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim4, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+
+}
+
+static void MX_USART2_UART_Init(void)
+{
+
+  huart2.Instance = USART2;
+  huart2.Init.BaudRate = 115200;
+  huart2.Init.WordLength = UART_WORDLENGTH_8B;
+  huart2.Init.StopBits = UART_STOPBITS_1;
+  huart2.Init.Parity = UART_PARITY_NONE;
+  huart2.Init.Mode = UART_MODE_TX;
+  huart2.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+  huart2.Init.OverSampling = UART_OVERSAMPLING_16;
+  if (HAL_UART_Init(&huart2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+}
+
+static void MX_GPIO_Init(void)
+{
+  GPIO_InitTypeDef GPIO_InitStruct = {0};
+
+  __HAL_RCC_GPIOA_CLK_ENABLE();
+
+  GPIO_InitStruct.Pin = GPIO_PIN_0;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_OD; // < OPEN DRAIN!
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+  
+  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_0, GPIO_PIN_SET);
+
+  /*Configure GPIO pin : PA1 - LED */
+  GPIO_InitStruct.Pin = GPIO_PIN_1;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+}
+
+
+
+/************************************************************FUNCTHION***************************************************/
+
+void delay_us(uint16_t us)
+{
+    __HAL_TIM_SET_COUNTER(&htim4, 0);
+    while (__HAL_TIM_GET_COUNTER(&htim4) < us);
+}
+
+// Функция задержки в миллисекундах
+void delay_ms(uint16_t ms)
+{
+    HAL_Delay(ms);
+}
+
+void Set_Pin_Output(GPIO_TypeDef *GPIOx, uint8_t GPIO_Pin)
+{
+    GPIO_InitTypeDef GPIO_InitStruct = {0};
+    GPIO_InitStruct.Pin = GPIO_Pin;
+    GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_OD; // Open Drain для 1-Wire
+    GPIO_InitStruct.Pull = GPIO_NOPULL;
+    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
+    HAL_GPIO_Init(GPIOx, &GPIO_InitStruct);
+}
+
+void Set_Pin_Input(GPIO_TypeDef *GPIOx, uint8_t GPIO_Pin)
+{
+    GPIO_InitTypeDef GPIO_InitStruct = {0};
+    GPIO_InitStruct.Pin = GPIO_Pin;
+    GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+    GPIO_InitStruct.Pull = GPIO_PULLUP; // Подтяжка к питанию
+    HAL_GPIO_Init(GPIOx, &GPIO_InitStruct);
+}
+
+// Инициализация DS18B20 и проверка наличия
+uint8_t DS18B20_Start(void)
+{
+    char debug_msg[100];
+    uint8_t presence = 1; // По умолчанию - устройство не ответило
+    
+    
+    Set_Pin_Output(GPIOA, GPIO_PIN_0);
+    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_0, GPIO_PIN_RESET);
+    snprintf(debug_msg, sizeof(debug_msg), "Reset: LINE LOW\r\n");
+    HAL_UART_Transmit(&huart2, (uint8_t*)debug_msg, strlen(debug_msg), 100);
+    
+    delay_us(480); 
+    
+    
+    Set_Pin_Input(GPIOA, GPIO_PIN_0);
+    snprintf(debug_msg, sizeof(debug_msg), "Waiting presence\r\n");
+    HAL_UART_Transmit(&huart2, (uint8_t*)debug_msg, strlen(debug_msg), 100);
+    
+    delay_us(70);
+    
+    
+    GPIO_PinState pin_state = HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_0);
+    snprintf(debug_msg, sizeof(debug_msg), "Pin state: %s\r\n", 
+             (pin_state == GPIO_PIN_RESET) ? "LOW (CONNECT)" : "HIGH (NO DEVICE)");
+    HAL_UART_Transmit(&huart2, (uint8_t*)debug_msg, strlen(debug_msg), 100);
+    
+    if (pin_state == GPIO_PIN_RESET) {
+        presence = 0; // Устройство найдено!
+    }
+    
+    delay_us(410); 
+    
+  
+    Set_Pin_Output(GPIOA, GPIO_PIN_0);
+    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_0, GPIO_PIN_SET);
+    
+    snprintf(debug_msg, sizeof(debug_msg), "Result: %s\r\n\r\n", 
+             (presence == 0) ? "FOUND" : "NOT FOUND");
+    HAL_UART_Transmit(&huart2, (uint8_t*)debug_msg, strlen(debug_msg), 100);
+    
+    return presence;
+}
+
+
+void DS18B20_WriteBit(uint8_t bit)
+{
+    Set_Pin_Output(GPIOA, GPIO_PIN_0);
+    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_0, 0);
+    delay_us(2);
+    
+    if (bit) {
+        delay_us(6); 
+        HAL_GPIO_WritePin(GPIOA, GPIO_PIN_0, 1);
+        delay_us(64);
+    } else {
+        delay_us(60); 
+        HAL_GPIO_WritePin(GPIOA, GPIO_PIN_0, 1);
+        delay_us(10);
+    }
+}
+
+// Чтение бита из DS18B20
+uint8_t DS18B20_ReadBit(void)
+{
+    uint8_t bit = 0;
+    
+    Set_Pin_Output(GPIOA, GPIO_PIN_0);
+    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_0, 0);
+    delay_us(2);
+    
+    Set_Pin_Input(GPIOA, GPIO_PIN_0);
+    delay_us(8);
+    
+    if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_0)) {
+        bit = 1;
+    }
+    
+    delay_us(50);
+    return bit;
+}
+
+// Запись байта в DS18B20
+void DS18B20_WriteByte(uint8_t data)
+{
+    for (uint8_t i = 0; i < 8; i++) {
+        DS18B20_WriteBit(data & 0x01);
+        data >>= 1;
+    }
+}
+
+// Чтение байта из DS18B20
+uint8_t DS18B20_ReadByte(void)
+{
+    uint8_t data = 0;
+    
+    for (uint8_t i = 0; i < 8; i++) {
+        data >>= 1;
+        if (DS18B20_ReadBit()) {
+            data |= 0x80;
+        }
+    }
+    
+    return data;
+}
+
+// Запуск преобразования температуры
+void DS18B20_StartConversion(void)
+{
+    DS18B20_Start(); // Reset pulse
+    DS18B20_WriteByte(0xCC); // Skip ROM command
+    DS18B20_WriteByte(0x44); // Start conversion command
+}
+
+// Чтение температуры
+float DS18B20_ReadTemperature(void)
+{
+    uint8_t temp_l, temp_h;
+    int16_t temp_raw;
+    float temperature;
+    
+    if (DS18B20_Start() != 0) {
+        return -999.9f; // Ошибка - устройство не ответило
+    }
+    
+    DS18B20_WriteByte(0xCC); // Skip ROM command
+    DS18B20_WriteByte(0xBE); // Read scratchpad command
+    
+    temp_l = DS18B20_ReadByte(); // LSB
+    temp_h = DS18B20_ReadByte(); // MSB
+    
+    // Диагностика сырых данных
+    char debug_msg[100];
+    snprintf(debug_msg, sizeof(debug_msg), "Raw bytes: LSB=0x%02X, MSB=0x%02X\r\n", temp_l, temp_h);
+    HAL_UART_Transmit(&huart2, (uint8_t*)debug_msg, strlen(debug_msg), 100);
+    
+    temp_raw = (temp_h << 8) | temp_l;
+    
+    // Проверка на отрицательную температуру
+    if (temp_raw & 0x8000) {
+        // Отрицательная температура - дополнительный код
+        temp_raw = ~temp_raw + 1;
+        temperature = -(temp_raw * 0.0625f);
+    } else {
+        temperature = temp_raw * 0.0625f;
+    }
+    
+    return temperature;
+}
+// Отправка температуры по UART
+void Send_Temperature_UART(float temperature)
+{
+    char buffer[50];
+    
+    if (temperature == -999.9f) {
+        char error_msg[] = "Error: DS18B20 not found!\r\n";
+        HAL_UART_Transmit(&huart2, (uint8_t*)error_msg, strlen(error_msg), 100);
+    } else {
+        int len = snprintf(buffer, sizeof(buffer), "Temperature: %.2f C\r\n", temperature);
+        HAL_UART_Transmit(&huart2, (uint8_t*)buffer, len, 100);
+    }
+}
+
+// Обработчик ошибок с индикацией светодиодом
+void Error_Handler_Custom(void)
+{
+    while (1) {
+        HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_1);
+        delay_ms(300);
+    }
+}
+
+
+
+/* USER CODE END 4 */
+
+/**
+  * @brief  This function is executed in case of error occurrence.
+  * @retval None
+  */
+void Error_Handler(void)
+{
+  /* USER CODE BEGIN Error_Handler_Debug */
+  /* User can add his own implementation to report the HAL error return state */
+  __disable_irq();
+  while (1)
+  {
+  }
+  /* USER CODE END Error_Handler_Debug */
+}
+
+#ifdef  USE_FULL_ASSERT
+/**
+  * @brief  Reports the name of the source file and the source line number
+  *         where the assert_param error has occurred.
+  * @param  file: pointer to the source file name
+  * @param  line: assert_param error line source number
+  * @retval None
+  */
+void assert_failed(uint8_t *file, uint32_t line)
+{
+  /* USER CODE BEGIN 6 */
+  /* User can add his own implementation to report the file name and line number,
+     ex: printf("Wrong parameters value: file %s on line %d\r\n", file, line) */
+  /* USER CODE END 6 */
+}
+#endif /* USE_FULL_ASSERT */
