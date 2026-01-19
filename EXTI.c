@@ -56,7 +56,7 @@ int main(void)
 	float hum_update;
 	char msg[50];
 	char msg_adc[40];
-	volatile uint32_t mes = 0;	
+	volatile uint32_t mes = 0;	 
 	uint8_t adc_valuec[2];
 	float adc_voltage = 0;
 	float adc_voltage_2 = 0;
@@ -455,36 +455,33 @@ static void MX_ADC1_Init(void)
 
 }
 
-/* USER CODE END 4 */
 
-/**
-  * @brief  This function is executed in case of error occurrence.
-  * @retval None
-  */
-void Error_Handler(void)
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 {
-  /* USER CODE BEGIN Error_Handler_Debug */
-  /* User can add his own implementation to report the HAL error return state */
-  __disable_irq();
-  while (1)
-  {
-  }
-  /* USER CODE END Error_Handler_Debug */
+    if (GPIO_Pin == GPIO_PIN_8) 
+    {
+        
+        if (HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_8) == 0) 
+        {
+           
+            if (!button_pressed_flag)  // Защита от дребезга
+            {
+                button_pressed_time = HAL_GetTick();
+                button_pressed_flag = true;
+                adc_mec_flag = true;  
+                
+            }
+        }
+        else 
+        {
+           
+            if (button_pressed_flag) 
+            {
+                button_hold_duration = HAL_GetTick() - button_pressed_time;
+                button_released_flag = true;
+							
+                button_pressed_flag = false; 
+            }
+        }
+    }
 }
-
-#ifdef  USE_FULL_ASSERT
-/**
-  * @brief  Reports the name of the source file and the source line number
-  *         where the assert_param error has occurred.
-  * @param  file: pointer to the source file name
-  * @param  line: assert_param error line source number
-  * @retval None
-  */
-void assert_failed(uint8_t *file, uint32_t line)
-{
-  /* USER CODE BEGIN 6 */
-  /* User can add his own implementation to report the file name and line number,
-     ex: printf("Wrong parameters value: file %s on line %d\r\n", file, line) */
-  /* USER CODE END 6 */
-}
-#endif /* USE_FULL_ASSERT */
