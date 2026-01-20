@@ -120,8 +120,8 @@ int main(void)
     {
         button_released_flag = false; 
         
-        uint32_t hold_time = button_hold_duration;
-        uint8_t new_brightness = current_brightness;
+         hold_time = button_hold_duration;
+         new_brightness = current_brightness;
         
        
         if (hold_time >= 5000) {
